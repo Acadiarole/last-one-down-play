@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Last One Down (prototype v0.2.0)</title>
+<title>Last One Down (prototype v0.2.1)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
@@ -43,6 +43,7 @@ button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
 #warn.hot{background:var(--red);color:#fff;border-color:var(--red);animation:pulse .45s infinite alternate}
 @keyframes pulse{to{transform:scale(1.08)}}
 
+#camBtn{position:absolute;left:12px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:2;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-weight:800;font-size:14px;box-shadow:0 3px 10px rgba(20,35,58,.2);touch-action:none}
 #itemBtn{position:absolute;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));width:80px;height:80px;border-radius:50%;border:4px solid #fff;background:var(--ticket);font-size:36px;box-shadow:0 6px 16px rgba(20,35,58,.3);display:flex;align-items:center;justify-content:center;touch-action:none}
 #itemBtn.empty{background:rgba(120,140,165,.55);color:#fff;font-size:13px;font-weight:800;box-shadow:none}
 #toasts{position:absolute;left:50%;top:34%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;width:90%}
@@ -93,10 +94,11 @@ td.num{text-align:right}
   <div id="count"></div>
   <div id="toasts"></div>
   <button id="itemBtn" class="empty" aria-label="Use item">ITEM</button>
+  <button id="camBtn" aria-label="Change camera">🎥 Chase</button>
 
   <div id="menu" class="overlay">
     <div class="ticket">
-      <div class="meta">Prototype v0.2.0 (3D chase cam), working title</div>
+      <div class="meta">Prototype v0.2.1 (3D, switchable camera), working title</div>
       <h1>Last One Down</h1>
       <p class="sub">Race your friends to the lodge while something comes down the mountain behind you. You don't have to be fast. You have to be faster than the slowest skier.</p>
       <div class="q">What's chasing you?</div>
@@ -109,7 +111,8 @@ td.num{text-align:right}
       <button class="go" id="goBtn">Drop in</button>
       <div class="stub help">
         <b>Phone:</b> hold and drag left or right of your skier to carve. Tap the round button to use an item.<br>
-        <b>Keyboard:</b> ← → steer, ↓ tuck, ↑ brake, Space uses an item.<br>
+        <b>Keyboard:</b> ← → steer, ↓ tuck, ↑ brake, Space uses an item, C changes the camera.<br>
+        <b>Camera:</b> tap the camera button (bottom left) for Chase, High, Overhead, Skier's eye or Classic 2D.<br>
         Hit the yellow crates for ⚡ Speed Wax, ❄️ Snowball Cannon, or 🎯 Bullseye Flare, which marks the racer ahead so the chaser goes after them.
       </div>
     </div>
@@ -256,6 +259,7 @@ addEventListener('keydown',e=>{
   if(['arrowleft','arrowright','arrowup','arrowdown',' '].includes(k))e.preventDefault();
   if(!e.repeat&&(k===' '||k==='e')&&mode==='race'&&S&&S.cd<=0)useItem(S.racers[0]);
   if(!e.repeat&&k==='enter'&&mode!=='race')start(mode==='results'?'random':chSel);
+  if(!e.repeat&&k==='c')nextCam();
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
 let touchX=null,pid=null;
@@ -865,7 +869,24 @@ function render2D(){
 // exactly as it does in the 2D view. Slope space maps into a "world" group tilted to
 // the fall line: local X = x*S3, local Z = -y*S3 (downhill is -Z), local Y = up off
 // the snow. 1 sim unit = 0.1 m, so the 3D view is in metres.
-const V3={on:false,psx:0};
+const V3={on:false,ok:false,psx:0,cam:0};
+// Camera views, cycled with the camera button or the C key. back/up/ahead are metres.
+const CAMS=[
+  {name:'Chase',back:9,up:4.3,ahead:11,lookY:1.2,yaw:0.35,speedBack:2.5,fov:60},
+  {name:'High',back:17,up:12,ahead:16,lookY:0,yaw:0.2,speedBack:3,fov:58},
+  {name:'Overhead',back:4,up:38,ahead:12,lookY:0,yaw:0,speedBack:0,fov:55,noMirror:true},
+  {name:"Skier's eye",back:-0.4,up:2.9,ahead:20,lookY:1.8,yaw:1,speedBack:0,fov:74,pov:true},
+  {name:'Classic 2D',flat:true},
+];
+const CAM_ICON=['🎥','🚁','🛰️','👀','🗺️'];
+function setCam(i){
+  if(!V3.ok)i=CAMS.length-1; // no WebGL: 2D only
+  V3.cam=i;V3.on=!CAMS[i].flat;
+  if(!V3.on)$('mirror').classList.add('hidden');
+  const b=$('camBtn');b.textContent=`${CAM_ICON[i]} ${CAMS[i].name}`;b.setAttribute('aria-label',`Camera: ${CAMS[i].name}. Tap to change.`);
+  try{localStorage.setItem('lod-cam',String(i));}catch(_){}
+}
+function nextCam(){setCam(V3.ok?(V3.cam+1)%CAMS.length:CAMS.length-1);}
 const S3=0.1,SLOPE_A=Math.atan(0.3);
 let G=null,RUN=null;
 function gh(X){const ax=Math.abs(X)-CFG.HW*S3;return ax>0?ax*0.35+ax*ax*0.012:0;} // side banks
@@ -1256,26 +1277,30 @@ function render3D(){
   // Chase camera: behind and above the focus racer, yaw easing toward their heading,
   // pulled back and widened with speed. High swooping shot in the menu and countdown.
   const fx=f.x*S3,fz=-f.y*S3,intro=mode!=='race'?1:clamp(S.cd/2.4,0,1),racing=f.state==='race';
-  const yawT=racing?f.a*0.35:0;G.yaw+=(yawT-G.yaw)*Math.min(1,2.5*dt);
+  const P=CAMS[V3.cam],pov=!!P.pov&&intro<0.01;
+  const yawT=racing?f.a*P.yaw:0;G.yaw+=(yawT-G.yaw)*Math.min(1,(P.pov?8:2.5)*dt);
   const sway=mode!=='race'?Math.sin(t*0.25)*0.5:0,yaw=G.yaw+sway*intro;
-  const back=9+Math.min(1.5,f.spd/400)*2.5+intro*26,up=4.3+intro*20;
+  const back=P.back+Math.min(1.5,f.spd/400)*P.speedBack+intro*26,up=P.up+intro*20;
   const cp=G.v.set(fx-Math.sin(yaw)*back,gh(fx)+up,fz+Math.cos(yaw)*back);
-  const cl=G.v2.set(fx+Math.sin(yaw)*11,gh(fx)+1.2-intro*2,fz-Math.cos(yaw)*11);
+  const cl=G.v2.set(fx+Math.sin(yaw)*P.ahead,gh(fx)+P.lookY-intro*2,fz-Math.cos(yaw)*P.ahead);
   world.updateMatrixWorld();world.localToWorld(cp);world.localToWorld(cl);
   if(!G.camInit){G.camPos.copy(cp);G.camLook.copy(cl);G.camInit=true;}
-  const kf=Math.min(1,(intro>0.01?2.5:7)*dt);G.camPos.lerp(cp,kf);G.camLook.lerp(cl,Math.min(1,9*dt));
+  const kf=pov?1:Math.min(1,(intro>0.01?2.5:7)*dt);G.camPos.lerp(cp,kf);G.camLook.lerp(cl,pov?1:Math.min(1,9*dt));
   const cam=G.cam;cam.position.copy(G.camPos);
   if(S.shake>0){cam.position.x+=frand(-1,1)*S.shake*0.03;cam.position.y+=frand(-1,1)*S.shake*0.03;}
   cam.lookAt(G.camLook);
-  G.fov+=((60+Math.min(1.45,f.spd/400)*12)-G.fov)*Math.min(1,3*dt);cam.fov=G.fov;cam.aspect=W/H;cam.updateProjectionMatrix();
+  G.fov+=((P.fov+Math.min(1.45,f.spd/400)*12)-G.fov)*Math.min(1,3*dt);cam.fov=G.fov;cam.aspect=W/H;cam.updateProjectionMatrix();
   // Sun and shadow box follow the action.
   const sp=G.v.set(fx,gh(fx),fz);world.localToWorld(sp);G.sun.target.position.copy(sp);G.sun.position.set(sp.x+25,sp.y+55,sp.z+20);
   // Where the player's skier is on screen, for drag-to-steer.
-  const pp=G.v2.set(p.x*S3,gh(p.x*S3)+1,-p.y*S3);world.localToWorld(pp);pp.project(cam);V3.psx=(pp.x+1)/2*W;
+  const pp=G.v2.set(p.x*S3,gh(p.x*S3)+1,-p.y*S3);world.localToWorld(pp);pp.project(cam);V3.psx=pov?W/2:(pp.x+1)/2*W;
+  // In the skier's-eye view, hide your own skier so the camera isn't inside it.
+  const meG=RUN.racers[0].g,meVis=meG.visible;if(pov&&f===p)meG.visible=false;
   const r3=G.renderer;r3.setScissorTest(false);r3.setViewport(0,0,W,H);r3.render(G.scene,cam);
-  // Rear-view mirror once the chaser is within ~110 m of you.
+  meG.visible=meVis;
+  // Rear-view mirror once the chaser is within ~110 m of you (not needed looking straight down).
   const mir=$('mirror'),gap=p.y-chaserFront();
-  if(mode==='race'&&S.cd<=0&&p.state==='race'&&gap<1100){
+  if(!P.noMirror&&mode==='race'&&S.cd<=0&&p.state==='race'&&gap<1100){
     const mw=Math.min(W*0.46,340),mh=mw/2.3,mx=(W-mw)/2,my=96;
     const px=p.x*S3,pz=-p.y*S3;
     const mp=G.v.set(px,gh(px)+3.2,pz-1.5),ml=G.v2.set(px,gh(px)+2.2,pz+40);world.localToWorld(mp);world.localToWorld(ml);
@@ -1348,7 +1373,10 @@ $('menuBtn').addEventListener('click',()=>{$('results').classList.add('hidden');
 
 // ---------- Loop ----------
 resize();newRun('snowball');S.cd=1e9;
-V3.on=init3D(); // falls back to the 2D view if WebGL or three.js is unavailable
+V3.ok=init3D(); // falls back to the 2D view if WebGL or three.js is unavailable
+{let c=0;try{const v=parseInt(localStorage.getItem('lod-cam'),10);if(v>=0&&v<CAMS.length)c=v;}catch(_){}setCam(c);}
+$('camBtn').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();nextCam();});
+$('camBtn').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();nextCam();}});
 let last=performance.now();
 function frame(now){
   const dt=clamp((now-last)/1000,0,0.033);last=now;
