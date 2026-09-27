@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Last One Down (prototype v0.2.2)</title>
+<title>Last One Down (prototype v0.3.0)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
@@ -50,6 +50,13 @@ button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
 .toast{background:var(--panel);color:var(--ink);font-weight:800;padding:6px 12px;border-radius:10px;font-size:15px;text-align:center;animation:pop 1.9s forwards}
 .toast.big{font-family:Bungee,Rubik,sans-serif;font-weight:400;font-size:20px;background:var(--red);color:#fff}
 @keyframes pop{0%{opacity:0;transform:translateY(8px) scale(.9)}10%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
+#lift{position:absolute;left:0;right:0;top:64px;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;padding-inline:16px}
+#lift .lt{font-family:Bungee,Rubik,sans-serif;font-size:22px;color:var(--blue);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 14px}
+#lift .ls{font-weight:800;font-size:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px 10px}
+#meter{position:absolute;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(520px,calc(100% - 32px));display:flex;align-items:center;gap:10px;pointer-events:none}
+#meter .nm{font-weight:800;font-size:14px;background:var(--panel);border-radius:8px;padding:3px 8px;white-space:nowrap}
+#meter .bar{position:relative;flex:1;height:22px;border-radius:11px;background:linear-gradient(90deg,var(--red) 0 12%,#fffdf6 12% 88%,var(--red) 88%);border:3px solid #fff;box-shadow:0 4px 12px rgba(20,35,58,.35)}
+#meter #mk{position:absolute;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:var(--ticket);border:3px solid #14233a;left:50%}
 #count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bungee,Rubik,sans-serif;font-size:110px;color:var(--red);text-shadow:0 5px 0 #fff,0 10px 24px rgba(20,35,58,.3);pointer-events:none}
 
 .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(13,26,44,.38);padding:16px;overflow:auto}
@@ -93,14 +100,17 @@ td.num{text-align:right}
   </div>
   <div id="count"></div>
   <div id="toasts"></div>
+  <div id="lift" class="hidden"><div class="lt" id="liftTitle"></div><div class="ls" id="liftSub"></div></div>
+  <div id="meter" class="hidden"><span class="nm" id="mL">You</span><div class="bar"><div id="mk"></div></div><span class="nm" id="mR"></span></div>
   <button id="itemBtn" class="empty" aria-label="Use item">ITEM</button>
   <button id="camBtn" aria-label="Change camera">🎥 Chase</button>
 
   <div id="menu" class="overlay">
     <div class="ticket">
-      <div class="meta">Prototype v0.2.2 (3D, switchable camera), working title</div>
+      <div class="meta">Prototype v0.3.0 (3D, mountain of 4 bowls), working title</div>
       <h1>Last One Down</h1>
       <p class="sub">Race your friends to the lodge while something comes down the mountain behind you. You don't have to be fast. You have to be faster than the slowest skier.</p>
+      <p class="sub">A mountain is four bowls with a chairlift between them. Points add up, and your place in each bowl sets your start in the next one.</p>
       <div class="q">What's chasing you?</div>
       <div class="chs" id="chs">
         <button data-ch="random" class="on">🎲 Random</button>
@@ -126,6 +136,7 @@ td.num{text-align:right}
         <thead><tr><th></th><th>Racer</th><th>Result</th><th class="num">Pts</th><th class="num">Total</th></tr></thead>
         <tbody id="resBody"></tbody>
       </table>
+      <div class="meta" id="resGrid"></div>
       <button class="go" id="nextBtn">Next run 🎲</button>
       <div class="btns"><button id="sameBtn">Same chaser</button><button id="menuBtn">Change chaser</button></div>
     </div>
@@ -242,11 +253,15 @@ function genCourse(){
   }
 }
 
-function newRun(type){
+function newRun(type,delays){
   if(type==='random')type=pick(['snowball','avalanche','yeti']);
   S={t:0,cd:2.4,type,obs:[],buckets:new Map(),npcs:[],racers:[],proj:[],parts:[],flare:null,over:false,shown:false,endT:0,shake:0,cam:{x:0,y:-(H/SC)*0.3}};
   ROSTER.forEach((p,i)=>S.racers.push({...p,id:i,x:(i-1.5)*60,y:0,a:0,spd:0,crash:0,inv:0,air:0,airMax:1,item:null,hold:0,boost:0,slow:0,
-    state:'race',fin:0,eatT:0,powder:false,think:0,want:0,trail:[],tt:0,lastRamp:null,turning:false}));
+    state:'race',fin:0,eatT:0,powder:false,think:0,want:0,trail:[],tt:0,lastRamp:null,turning:false,
+    delay:(delays&&delays[i])||0}));
+  // v0.3.0: staggered start. The chaser's clock starts when the LAST skier leaves, so a late
+  // starter is never caught at the start line before they could move.
+  S.chGrace=CFG.GRACE+Math.max(0,...S.racers.map(r=>r.delay));
   genCourse();
   S.ch={type,x:0,y:CFG.CH_START,r:36,rot:0,pause:0,munch:0,anim:0,stuck:[]};
   chEl.textContent=CHASERS[type].icon;
@@ -258,12 +273,14 @@ addEventListener('keydown',e=>{
   const k=e.key.toLowerCase();keys[k]=true;
   if(['arrowleft','arrowright','arrowup','arrowdown',' '].includes(k))e.preventDefault();
   if(!e.repeat&&(k===' '||k==='e')&&mode==='race'&&S&&S.cd<=0)useItem(S.racers[0]);
-  if(!e.repeat&&k==='enter'&&mode!=='race')start(mode==='results'?'random':chSel);
+  if(!e.repeat&&k===' '&&mode==='lift')liftMash();
+  if(!e.repeat&&k==='enter'&&mode==='results')$('nextBtn').click();
+  if(!e.repeat&&k==='enter'&&mode==='menu')start(chSel);
   if(!e.repeat&&k==='c')nextCam();
 });
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
 let touchX=null,pid=null;
-cv.addEventListener('pointerdown',e=>{pid=e.pointerId;touchX=e.clientX;try{cv.setPointerCapture(pid);}catch(_){}});
+cv.addEventListener('pointerdown',e=>{if(mode==='lift'){liftMash();return;}pid=e.pointerId;touchX=e.clientX;try{cv.setPointerCapture(pid);}catch(_){}});
 cv.addEventListener('pointermove',e=>{if(e.pointerId===pid)touchX=e.clientX;});
 const endPtr=e=>{if(e.pointerId===pid){pid=null;touchX=null;}};
 cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
@@ -279,6 +296,7 @@ function chaserFront(){const c=S.ch;return c.type==='snowball'?c.y+c.r:c.type===
 function updRacer(r,dt,inp){
   if(r.state==='finished'){r.spd=Math.max(0,r.spd-260*dt);r.x+=r.spd*Math.sin(r.a)*dt;r.y+=r.spd*Math.cos(r.a)*dt;return;}
   if(r.state!=='race')return;
+  if(S.t<r.delay){r.spd=0;return;} // v0.3.0: waiting for your slot on the start grid
   r.inv=Math.max(0,r.inv-dt);r.boost=Math.max(0,r.boost-dt);r.slow=Math.max(0,r.slow-dt);
   if(r.crash>0){r.crash-=dt;r.spd=0;if(r.crash<=0){r.inv=1.1;r.a=0;r.want=0;}return;}
   const air=r.air>0;
@@ -354,6 +372,7 @@ function bumps(){
   for(let i=0;i<rs.length;i++)for(let j=i+1;j<rs.length;j++){
     const a=rs[i],b=rs[j];
     if(a.state!=='race'||b.state!=='race'||a.air>0||b.air>0||a.crash>0||b.crash>0)continue;
+    if(S.t<a.delay||S.t<b.delay)continue;
     const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
     if(d<18&&d>0.01){
       const nx=dx/d,ny=dy/d,push=(18-d)/2;
@@ -493,10 +512,11 @@ function updNpcs(dt){
 // ---------- Chaser ----------
 function updChaser(dt){
   const c=S.ch;c.anim+=dt;c.munch=Math.max(0,c.munch-dt);
-  if(S.t<CFG.GRACE)return;
+  const G0=S.chGrace||CFG.GRACE;
+  if(S.t<G0)return;
   if(c.pause>0){c.pause-=dt;return;}
   const alive=S.racers.filter(r=>r.state==='race');if(!alive.length)return;
-  let base=Math.min(CFG.CH_CAP,CFG.CH_BASE+CFG.CH_RAMP*(S.t-CFG.GRACE));
+  let base=Math.min(CFG.CH_CAP,CFG.CH_BASE+CFG.CH_RAMP*(S.t-G0));
   const flared=S.flare&&S.flare.t.state==='race'?S.flare.t:null;
   const tgt=flared||alive.reduce((m,r)=>r.y<m.y?r:m);
   const fl=flared?1.15:1;
@@ -797,6 +817,7 @@ function drawLodge(y){
 }
 
 function render(){
+  if(mode==='lift'&&V3.on){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);$('mirror').classList.add('hidden');renderLift3D();return;}
   if(V3.on){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);render3D();return;}
   render2D();
 }
@@ -1354,7 +1375,8 @@ function updHud(){
   }else warn.classList.add('hidden');
   const cnt=$('count');
   if(mode==='race'&&S.cd>0)cnt.textContent=Math.ceil(S.cd/0.8);
-  else if(mode==='race'&&S.t<0.6)cnt.textContent='GO!';
+  else if(mode==='race'&&S.t<p.delay)cnt.textContent=Math.ceil(p.delay-S.t);
+  else if(mode==='race'&&S.t-p.delay<0.6&&p.state==='race')cnt.textContent='GO!';
   else cnt.textContent='';
 }
 function updItemBtn(){
@@ -1369,32 +1391,225 @@ function toast(t,big){
   setTimeout(()=>d.remove(),1900);
 }
 
-// ---------- Screens ----------
+// ---------- Screens (v0.3.0: a mountain of bowls) ----------
+// Tunables for the session and the chairlift. See CLAUDE.md "Design direction".
+const MTN={SECTIONS:4,GRID_STEP:1,LIFT_FALL_DELAY:5,LIFT_WIN_POINTS:2,LIFT_TIME:13,
+  MASH:0.085,DUEL_START_CLICKS:3,DUEL_START_WINDOW:1.2,BOT_MASH_BASE:3.2,BOT_MASH_SKILL:4.2};
+const PTS=[10,6,4,2];
+let SES=null;
+function start(type){
+  SES={choice:type,sec:1,totals:{},delays:ROSTER.map(()=>0),notes:{}};
+  ROSTER.forEach(p=>SES.totals[p.name]=0);
+  startSection();
+}
+function startSection(){
+  $('menu').classList.add('hidden');$('results').classList.add('hidden');$('toasts').innerHTML='';
+  $('lift').classList.add('hidden');$('meter').classList.add('hidden');
+  $('hud').classList.remove('hidden');$('itemBtn').classList.remove('hidden');
+  newRun(SES.choice,SES.delays);mode='race';updItemBtn();
+  const me=S.racers[0];
+  toast(`Bowl ${SES.sec} of ${MTN.SECTIONS}`+(me.delay>0?` - you start +${me.delay} s`:''),true);
+}
 function showResults(){
   mode='results';
-  const rk=ranking(),pts=[10,6,4,2];let html='';
+  const rk=ranking();let html='';
+  const last=SES.sec>=MTN.SECTIONS;
   rk.forEach((r,i)=>{
-    const got=r.state==='finished'?pts[i]||0:0;totals[r.name]+=got;
-    html+=`<tr class="${r.isPlayer?'me':''}"><td>${ord(i+1)}</td><td><span class="dot" style="background:${r.color}"></span>${r.name}</td><td>${r.state==='finished'?fmt(r.fin):CHASERS[S.ch.type].short}</td><td class="num">+${got}</td><td class="num">${totals[r.name]}</td></tr>`;
+    const got=r.state==='finished'?PTS[i]||0:0;SES.totals[r.name]+=got;
+    html+=`<tr class="${r.isPlayer?'me':''}"><td>${ord(i+1)}</td><td><span class="dot" style="background:${r.color}"></span>${r.name}</td><td>${r.state==='finished'?fmt(r.fin):CHASERS[S.ch.type].short}</td><td class="num">+${got}</td><td class="num">${SES.totals[r.name]}</td></tr>`;
   });
+  // Next bowl's grid: one second per place in THIS bowl (caught racers rank last, first caught last).
+  SES.delays=ROSTER.map(()=>0);
+  rk.forEach((r,i)=>{SES.delays[r.id]=i*MTN.GRID_STEP;});
   const p=S.racers[0];
-  $('resTitle').textContent=p.state==='finished'?`You made it down ${ord(rk.indexOf(p)+1)}`:`You ${CHASERS[S.ch.type].verb}`;
-  $('resSub').textContent=`This run's chaser: ${CHASERS[S.ch.type].name}`;
+  if(last){
+    const order=[...ROSTER].sort((a,b)=>SES.totals[b.name]-SES.totals[a.name]);
+    const champ=order[0];
+    $('resTitle').textContent=champ.isPlayer?'You won the mountain!':`${champ.name} wins the mountain`;
+    $('resSub').textContent=`Bowl ${SES.sec} of ${MTN.SECTIONS} - final`;
+    $('resGrid').textContent='Mountain: '+order.map((r,i)=>`${ord(i+1)} ${r.isPlayer?'You':r.name} ${SES.totals[r.name]}`).join(' · ');
+    $('nextBtn').textContent='New mountain';
+    $('menuBtn').textContent='Change chaser';
+  }else{
+    $('resTitle').textContent=p.state==='finished'?`You made it down ${ord(rk.indexOf(p)+1)}`:`You ${CHASERS[S.ch.type].verb}`;
+    $('resSub').textContent=`Bowl ${SES.sec} of ${MTN.SECTIONS} - chaser: ${CHASERS[S.ch.type].name}`;
+    $('resGrid').textContent='Next bowl starts: '+rk.map(r=>`${r.isPlayer?'You':r.name} +${SES.delays[r.id]} s`).join(' · ');
+    $('nextBtn').textContent='Ride the lift';
+    $('menuBtn').textContent='Quit mountain';
+  }
+  $('sameBtn').classList.add('hidden');
   $('resBody').innerHTML=html;
   $('results').classList.remove('hidden');
-}
-function start(type){
-  $('menu').classList.add('hidden');$('results').classList.add('hidden');$('toasts').innerHTML='';
-  newRun(type);mode='race';updItemBtn();
 }
 $('chs').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;chSel=b.dataset.ch;
   [...$('chs').children].forEach(x=>x.classList.toggle('on',x===b));
 });
 $('goBtn').addEventListener('click',()=>start(chSel));
-$('nextBtn').addEventListener('click',()=>start('random'));
-$('sameBtn').addEventListener('click',()=>start(S.ch.type));
-$('menuBtn').addEventListener('click',()=>{$('results').classList.add('hidden');$('menu').classList.remove('hidden');mode='menu';});
+$('nextBtn').addEventListener('click',()=>{
+  if(!SES||SES.sec>=MTN.SECTIONS)start(SES?SES.choice:chSel);
+  else startLift();
+});
+$('menuBtn').addEventListener('click',()=>{$('results').classList.add('hidden');$('menu').classList.remove('hidden');mode='menu';SES=null;});
+
+// ---------- Chairlift (v0.3.0) ----------
+// Two to a chair, pairs drawn at random. A SECRET button-mash duel: nothing on screen says it
+// exists. A human starts it by mashing (3 clicks/taps inside 1.2 s); bots never start one but
+// fight back. The tug-of-war meter appears only once a duel is on. The marker drifts toward
+// whoever is about to fall; reaching an end dumps that rider. The winner gets points; the loser
+// is fetched by a snowmobile and starts the next bowl 5 s later.
+let LIFT=null;
+function startLift(){
+  $('results').classList.add('hidden');$('toasts').innerHTML='';
+  const ids=ROSTER.map((_,i)=>i);
+  for(let i=ids.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[ids[i],ids[j]]=[ids[j],ids[i]];}
+  const pairs=[];for(let i=0;i<ids.length;i+=2)pairs.push([ids[i],ids[i+1]]);
+  const mine=pairs.find(pr=>pr.includes(0));
+  const partner=mine[0]===0?mine[1]:mine[0];
+  LIFT={t:0,pairs,mine,partner,duel:false,v:0,clicks:[],fell:null,fallT:0,done:false};
+  SES.sec++;
+  mode='lift';
+  $('liftTitle').textContent=`Chairlift to Bowl ${SES.sec}`;
+  $('liftSub').textContent=`On your chair: ${ROSTER[partner].name}`;
+  $('lift').classList.remove('hidden');$('meter').classList.add('hidden');
+  $('hud').classList.add('hidden');$('itemBtn').classList.add('hidden');
+  $('mR').textContent=ROSTER[partner].name;
+  if(liftScene)liftScene.reset=true;
+}
+function liftMash(){
+  if(!LIFT||LIFT.fell!==null||LIFT.done)return;
+  const now=LIFT.t;
+  if(!LIFT.duel){
+    LIFT.clicks=LIFT.clicks.filter(t=>now-t<MTN.DUEL_START_WINDOW);LIFT.clicks.push(now);
+    if(LIFT.clicks.length>=MTN.DUEL_START_CLICKS){LIFT.duel=true;$('meter').classList.remove('hidden');}
+    return;
+  }
+  LIFT.v+=MTN.MASH;
+}
+function liftStep(dt){
+  if(!LIFT)return;
+  LIFT.t+=dt;
+  if(LIFT.duel&&LIFT.fell===null){
+    const bot=ROSTER[LIFT.partner];
+    // bots mash back at a skill-based rate, a little ragged
+    const rate=MTN.BOT_MASH_BASE+MTN.BOT_MASH_SKILL*bot.skill;
+    LIFT.v-=MTN.MASH*rate*dt*(0.75+0.5*Math.random());
+    if(LIFT.v>=1||LIFT.v<=-1){
+      const loser=LIFT.v>=1?LIFT.partner:0,winner=loser===0?LIFT.partner:0;
+      LIFT.fell=loser;LIFT.fallT=LIFT.t;
+      SES.totals[ROSTER[winner].name]+=MTN.LIFT_WIN_POINTS;
+      SES.delays[loser]+=MTN.LIFT_FALL_DELAY;
+      if(loser===0)toast(`You fell off! A snowmobile will get you there... +${MTN.LIFT_FALL_DELAY} s`,true);
+      else toast(`${ROSTER[loser].name} fell off! +${MTN.LIFT_WIN_POINTS} points to you`,true);
+      $('meter').classList.add('hidden');
+    }
+  }
+  const mk=$('mk');mk.style.left=(50+clamp(LIFT.v,-1,1)*44)+'%';
+  if(LIFT.t>=MTN.LIFT_TIME&&!LIFT.done){LIFT.done=true;startSection();}
+}
+
+// 3D chairlift scene, built once. Local coords: cable runs along -Z (uphill) 9 m above the
+// snow; the group is tilted so -Z climbs. Riders face uphill (-Z); the camera sits ahead of the
+// chair looking back at them, with the slope falling away behind.
+let liftScene=null;
+function buildLift3D(){
+  const T=G.T,M=G.M,L=G.geo;
+  const scene=new T.Scene();const sky=new T.Color('#bfe3ff');scene.background=sky;scene.fog=new T.Fog(sky,40,190);
+  scene.add(new T.HemisphereLight('#eef6ff','#7890ad',0.66));
+  const sun=new T.DirectionalLight('#fff2da',0.8);sun.position.set(30,60,20);scene.add(sun);
+  const cam=new T.PerspectiveCamera(55,1,0.2,300);
+  const world=new T.Group();world.rotation.x=0.28;scene.add(world);
+  const ground=new T.Mesh(new T.PlaneGeometry(260,900),new T.MeshToonMaterial({color:'#ffffff',gradientMap:G.ramp}));
+  ground.rotation.x=-Math.PI/2;ground.position.z=-300;world.add(ground);
+  const H=9;
+  const cable=new T.Mesh(new T.CylinderGeometry(0.05,0.05,900,4),M('#39475a'));cable.rotation.x=Math.PI/2;cable.position.set(0,H+1.9,-300);world.add(cable);
+  // towers and trees
+  for(let z=-20;z>-700;z-=70){const t=new T.Mesh(new T.CylinderGeometry(0.3,0.4,H+2.4,8),M('#6b7785'));t.position.set(-2.4,(H+2.4)/2,z);t.rotation.x=-0.28;world.add(t);
+    const bar=new T.Mesh(new T.BoxGeometry(2.8,0.35,0.35),M('#6b7785'));bar.position.set(-1.1,H+2.3,z);world.add(bar);}
+  const D=new T.Object3D(),n=260,trees=[];
+  for(let i=0;i<n;i++){const side=i%2?1:-1;trees.push([side*(7+Math.random()*80),20-Math.random()*720,0.8+Math.random()*0.6]);}
+  for(const [g,m] of [[L.trunk,M('#6b4a2b')],[L.cone1,M('#2c6247',true)],[L.cone2,M('#3a8a5f',true)],[L.tip,M('#ffffff',true)]]){
+    const im=new T.InstancedMesh(g,m,n);trees.forEach(([x,z,sc],i)=>{D.position.set(x,0,z);D.rotation.set(-0.28,0,0);D.scale.setScalar(sc);D.updateMatrix();im.setMatrixAt(i,D.matrix);});world.add(im);}
+  // chairs
+  const makeChair=()=>{const g=new T.Group();
+    const hang=new T.Mesh(new T.CylinderGeometry(0.05,0.05,2.2,5),M('#39475a'));hang.position.y=1.1;g.add(hang);
+    const seat=new T.Mesh(new T.BoxGeometry(2.4,0.18,0.8),M('#39475a'));seat.position.y=-0.2;g.add(seat);
+    const back=new T.Mesh(new T.BoxGeometry(2.4,0.9,0.12),M('#39475a'));back.position.set(0,0.3,0.42);g.add(back);
+    const bar=new T.Mesh(new T.CylinderGeometry(0.04,0.04,2.4,5),M('#e23b2e'));bar.rotation.z=Math.PI/2;bar.position.set(0,0.55,-0.6);g.add(bar);
+    return g;};
+  const chair=makeChair();world.add(chair);
+  const others=[];for(let k=1;k<=6;k++){const c=makeChair();world.add(c);others.push(c);}
+  // snowmobile (hidden until someone falls)
+  const sm=new T.Group();
+  const body=new T.Mesh(new T.BoxGeometry(1.1,0.6,2.4),M('#e23b2e'));body.position.y=0.55;sm.add(body);
+  const cowl=new T.Mesh(new T.BoxGeometry(1.0,0.5,0.9),M('#1c2433'));cowl.position.set(0,0.9,-0.9);sm.add(cowl);
+  const track=new T.Mesh(new T.BoxGeometry(0.8,0.35,1.8),M('#1c2433'));track.position.set(0,0.2,0.4);sm.add(track);
+  for(const sd of[-1,1]){const ski=new T.Mesh(new T.BoxGeometry(0.18,0.08,1.4),M('#1c2433'));ski.position.set(sd*0.55,0.05,-1.2);sm.add(ski);}
+  const driver=makeSkier('#ffc93c',{sit:true,helmet:'#e23b2e'});driver.g.position.set(0,0.55,0.1);sm.add(driver.g);
+  sm.visible=false;world.add(sm);
+  liftScene={scene,cam,world,chair,others,sm,H,riders:null,fallen:null,reset:true};
+}
+function liftReset(){
+  const LS=liftScene;
+  if(LS.riders)LS.riders.forEach(k=>{k.g.parent&&k.g.parent.remove(k.g);});
+  if(LS.fallen){LS.fallen.g.parent&&LS.fallen.g.parent.remove(LS.fallen.g);LS.fallen=null;}
+  (LS.otherRiders||[]).forEach(k=>k.g.parent&&k.g.parent.remove(k.g));
+  // my chair: player on the left, partner on the right (as seen by the camera)
+  const mk=(id,x)=>{const r=ROSTER[id];const k=makeSkier(r.color,{sit:true,scale:1.1});k.g.position.set(x,-0.25,0);
+    const lb=textSprite(r.isPlayer?'YOU':r.name,r.color,2.6);lb.position.y=2.4;k.g.add(lb);k.id=id;LS.chair.add(k.g);return k;};
+  LS.riders=[mk(0,0.6),mk(LIFT.partner,-0.6)];
+  // the other pair rides the chair ahead
+  LS.otherRiders=[];
+  const other=LIFT.pairs.find(pr=>!pr.includes(0));
+  if(other){other.forEach((id,j)=>{const r=ROSTER[id];const k=makeSkier(r.color,{sit:true,scale:1.1});k.g.position.set(j?-0.6:0.6,-0.25,0);LS.others[0].add(k.g);LS.otherRiders.push(k);});}
+  LS.sm.visible=false;LS.reset=false;
+}
+function renderLift3D(){
+  if(!liftScene)buildLift3D();
+  const LS=liftScene,T=G.T;
+  if(LS.reset)liftReset();
+  const now=performance.now(),t=LIFT?LIFT.t:0;
+  if(G.w!==W||G.h!==H){G.w=W;G.h=H;G.renderer.setSize(W,H,false);}
+  const SPEED=4.5,z0=-t*SPEED;
+  LS.chair.position.set(0,LS.H,z0);
+  LS.others.forEach((c,k)=>{c.position.set(0,LS.H,z0-k*14-14);c.rotation.x=-0.28;c.rotation.z=Math.sin(now/900+k)*0.03;});
+  // sway: gentle idle plus the duel's rocking (tilts toward whoever is losing)
+  const v=LIFT?clamp(LIFT.v,-1,1):0,duel=LIFT&&LIFT.duel&&LIFT.fell===null;
+  LS.chair.rotation.x=-0.28; // hang level against the tilted slope
+  LS.chair.rotation.z=Math.sin(now/800)*0.03+(duel?(v*0.45+Math.sin(now/90)*0.06*Math.abs(v)):0); // +z tips toward screen-right = partner
+  // riders' arms: grip the bar during a duel
+  LS.riders.forEach(k=>{if(k.P.arms)k.P.arms.forEach((a,j)=>{a.rotation.x=duel?-1.3+Math.sin(now/60+j)*0.25:0;});});
+  // someone fell: detach them and let them drop to the snow, then the snowmobile collects them
+  if(LIFT&&LIFT.fell!==null&&!LS.fallen){
+    const k=LS.riders.find(r=>r.id===LIFT.fell);
+    const wp=new T.Vector3();k.g.getWorldPosition(wp);LS.world.worldToLocal(wp);
+    LS.chair.remove(k.g);LS.world.add(k.g);
+    LS.fallen={g:k.g,x:wp.x,y0:wp.y,z:wp.z,t0:LIFT.fallT,onSled:false};
+  }
+  if(LS.fallen){
+    // Driven by the lift clock, not frame count, so it plays correctly at any frame rate.
+    const F=LS.fallen,age=t-F.t0,tland=Math.sqrt(Math.max(0,F.y0-0.2)/12);
+    const sm=LS.sm,ARR=2.2,sx=F.x+18,sz=F.z+12,ax=F.x+1.3,az=F.z;
+    if(!F.onSled){
+      if(age<tland){F.g.position.set(F.x,F.y0-12*age*age,F.z);F.g.rotation.set(age*8,0,age*5);}
+      else{F.g.position.set(F.x,0.2,F.z);F.g.rotation.set(1.3,0,0.4);}
+    }
+    sm.visible=age>0.6;
+    if(age>0.6&&age<ARR){const u=(age-0.6)/(ARR-0.6),e=u*u*(3-2*u);
+      sm.position.set(sx+(ax-sx)*e,0,sz+(az-sz)*e);sm.rotation.y=Math.atan2(-(ax-sx),-(az-sz));}
+    else if(age>=ARR){
+      if(!F.onSled){LS.world.remove(F.g);sm.add(F.g);F.onSled=true;}
+      F.g.position.set(0,0.75,1.0);F.g.rotation.set(0,0,0);
+      sm.position.set(ax,0,az-(age-ARR)*9);sm.rotation.y=0;
+    }
+  }
+  // camera ahead of the chair, looking back down at the riders
+  LS.world.updateMatrixWorld();
+  const cp=new T.Vector3(3,LS.H+2.6,z0-9),cl=new T.Vector3(0,LS.H-2.2,z0+4); // tilted down: the snow behind the chair (falls, snowmobile) stays in view
+  LS.world.localToWorld(cp);LS.world.localToWorld(cl);
+  LS.cam.position.copy(cp);LS.cam.lookAt(cl);LS.cam.aspect=W/H;LS.cam.updateProjectionMatrix();
+  const r3=G.renderer;r3.setScissorTest(false);r3.setViewport(0,0,W,H);r3.render(LS.scene,LS.cam);
+}
 
 // ---------- Loop ----------
 resize();newRun('snowball');S.cd=1e9;
@@ -1405,6 +1620,7 @@ $('camBtn').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.pr
 let last=performance.now();
 function frame(now){
   const dt=clamp((now-last)/1000,0,0.033);last=now;
+  if(mode==='lift')liftStep(dt);
   if(mode==='race'&&S){
     const steps=S.racers[0].state==='race'||S.cd>0?1:2; // fast-forward once you're out
     for(let i=0;i<steps;i++)step(dt);
@@ -1414,7 +1630,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 // v0.1.1: test hook for the Node cross-check harness (tools/crosscheck).
-window.__LOD={seedRng,newRun,step,chaserFront,ranking,get S(){return S;},setView(w,h){W=w;H=h;SC=Math.max(0.55,Math.min(W/440,H/720));}};
+window.__LOD={seedRng,newRun,step,chaserFront,ranking,get S(){return S;},lift:{mash:()=>liftMash(),step:d=>liftStep(d),get L(){return LIFT;},get SES(){return SES;},get mode(){return mode;}},setView(w,h){W=w;H=h;SC=Math.max(0.55,Math.min(W/440,H/720));}};
 })();
 </script>
 </body>
