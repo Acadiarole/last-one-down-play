@@ -47,6 +47,8 @@ button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
 #itemBtn{position:absolute;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));width:80px;height:80px;border-radius:50%;border:4px solid #fff;background:var(--ticket);font-size:36px;box-shadow:0 6px 16px rgba(20,35,58,.3);display:flex;align-items:center;justify-content:center;touch-action:none}
 #poleBtn{position:absolute;right:108px;bottom:calc(26px + env(safe-area-inset-bottom,0px));width:64px;height:64px;border-radius:50%;border:3px solid #fff;background:#55606f;color:#fff;font-size:13px;font-weight:800;box-shadow:0 5px 12px rgba(20,35,58,.3);touch-action:none}
 #poleBtn.cool{opacity:.4}
+#jumpBtn{position:absolute;right:16px;bottom:calc(112px + env(safe-area-inset-bottom,0px));width:64px;height:64px;border-radius:50%;border:3px solid #fff;background:linear-gradient(to top,#ffc93c var(--c,0%),#1f5fa8 var(--c,0%));color:#fff;font-size:13px;font-weight:800;box-shadow:0 5px 12px rgba(20,35,58,.3);touch-action:none}
+#jumpBtn.full{box-shadow:0 0 0 4px #ffc93c,0 5px 12px rgba(20,35,58,.3)}
 #itemBtn.empty{background:rgba(120,140,165,.55);color:#fff;font-size:13px;font-weight:800;box-shadow:none}
 #toasts{position:absolute;left:50%;top:34%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;width:90%}
 .toast{background:var(--panel);color:var(--ink);font-weight:800;padding:6px 12px;border-radius:10px;font-size:15px;text-align:center;animation:pop 1.9s forwards}
@@ -106,11 +108,12 @@ td.num{text-align:right}
   <div id="meter" class="hidden"><span class="nm" id="mL">You</span><div class="bar"><div id="mk"></div></div><span class="nm" id="mR"></span></div>
   <button id="itemBtn" class="empty" aria-label="Use item">ITEM</button>
   <button id="poleBtn" aria-label="Pole jab">POLE</button>
+  <button id="jumpBtn" aria-label="Hold to charge a jump">JUMP</button>
   <button id="camBtn" aria-label="Change camera">🎥 Chase</button>
 
   <div id="menu" class="overlay">
     <div class="ticket">
-      <div class="meta">Prototype v0.3.3 (3D, mountain of 4 bowls, pole jab + tricks), working title</div>
+      <div class="meta">Prototype v0.3.4 (3D, mountain of 4 bowls, pole jab, charge jumps + trick mashing), working title</div>
       <h1>Last One Down</h1>
       <p class="sub">Race your friends to the lodge while something comes down the mountain behind you. You don't have to be fast. You have to be faster than the slowest skier.</p>
       <p class="sub">A mountain is four bowls with a chairlift between them. Everyone starts each bowl together; points decide who wins the mountain.</p>
@@ -123,8 +126,8 @@ td.num{text-align:right}
       </div>
       <button class="go" id="goBtn">Drop in</button>
       <div class="stub help">
-        <b>Phone:</b> hold and drag left or right of your skier to carve. Tap the round button to use an item, POLE to jab whoever is beside you. In the air, flick up, down, left or right for tricks.<br>
-        <b>Keyboard:</b> ← → steer, ↓ tuck, ↑ brake, Space uses an item, F jabs your pole, C changes the camera.<br><b>Pole jab:</b> knock over a skier right beside or just ahead of you and get a speed boost. Miss and you wobble. 3 s to recharge.<br><b>Tricks:</b> in the air, ← → spin, ↑ backflip, ↓ grab. Tap the next one as the last one finishes. Land clean for a speed boost: more moves and more kinds, bigger boost. Still mid-trick when you land? You bail.<br>
+        <b>Phone:</b> hold and drag left or right of your skier to carve. Tap the round button to use an item, POLE to jab whoever is beside you. Hold JUMP before a ramp to charge. In the air, flick up, down, left or right as many times as you can for tricks.<br>
+        <b>Keyboard:</b> ← → steer, ↓ tuck, ↑ brake, Space uses an item, F jabs your pole, hold Shift to charge a jump, C changes the camera.<br><b>Controller:</b> left stick or d-pad steers, A (hold) charges a jump, X jabs your pole, B uses an item, RT tuck, LT brake.<br><b>Pole jab:</b> knock over a skier right beside or just ahead of you and get a speed boost. Miss and you wobble. 3 s to recharge.<br><b>Charge jump:</b> hold Shift / A / JUMP on the way to a ramp. You can't turn while charging, and any hit cancels it. A full charge (1.5 s) sends you much higher.<br><b>Tricks:</b> in the air, mash ← → (spin), ↑ (backflip), ↓ (grab) as many times as you can. Mixing them up is worth more than repeating one. Land clean for a speed boost; still mid-move when you hit the snow? You bail.<br>
         <b>Camera:</b> tap the camera button (bottom left) for Chase, High, Overhead, Skier's eye or Classic 2D.<br>
         Hit the yellow crates for ⚡ Speed Wax, ❄️ Snowball Cannon, or 🎯 Bullseye Flare, which marks the racer ahead so the chaser goes after them.
       </div>
@@ -154,7 +157,9 @@ td.num{text-align:right}
 const CFG={L:16000,HW:560,CH_START:-1100,CH_BASE:165,CH_RAMP:7,CH_CAP:470,GRACE:1.5,MAX:400,TURN:3.1};
 // v0.3.3 (Tim, 2026-09-27): pole jab, tricks, and the snowball is full at half the field.
 const PT={POLE_REACH:38,POLE_BEHIND:12,POLE_CD:3,POLE_BOOST:1.2,POLE_MISS:0.85,POLE_ANIM:0.25,BOT_POLE_RATE:2.0,
-  TRICK_MOVE:0.26,TRICK_EARLY:0.55,TRICK_LATE:0.12,TRICK_BOOST:0.6,TRICK_VARIETY:0.3,
+  // v0.3.4 (Tim): no trick timer, mash as many moves as the air allows; charge jumps.
+  TRICK_ANIM:0.18,TRICK_NEW:0.25,TRICK_SAME:0.1,TRICK_VARIETY:0.3,TRICK_BOOST_CAP:3.5,BOT_MASH:5,
+  AIR_BASE:0.8,AIR_PER_SPD:1/400,CHARGE_TIME:1.5,CHARGE_AIR:0.7,
   SB_CAP:280,SB_CAPACITY:0.5};
 const MOVES={L:{kind:'spin',dir:-1},R:{kind:'spin',dir:1},F:{kind:'flip',name:'Backflip'},G:{kind:'grab',name:'Grab'}};
 const ITEMS={flare:{icon:'🎯',name:'Bullseye Flare'},cannon:{icon:'❄️',name:'Snowball Cannon'},wax:{icon:'⚡',name:'Speed Wax'}};
@@ -266,7 +271,7 @@ function newRun(type,delays){
   S={t:0,cd:2.4,type,obs:[],buckets:new Map(),npcs:[],racers:[],proj:[],parts:[],flare:null,over:false,shown:false,endT:0,shake:0,cam:{x:0,y:-(H/SC)*0.3}};
   ROSTER.forEach((p,i)=>S.racers.push({...p,id:i,x:(i-1.5)*60,y:0,a:0,spd:0,crash:0,inv:0,air:0,airMax:1,item:null,hold:0,boost:0,slow:0,
     state:'race',fin:0,eatT:0,powder:false,think:0,want:0,trail:[],tt:0,lastRamp:null,turning:false,
-    poleCd:0,poleT:0,poleSide:1,tr:null,tricks:[],
+    poleCd:0,poleT:0,poleSide:1,tr:null,tricks:[],chg:0,botChg:false,
     delay:(delays&&delays[i])||0}));
   // v0.3.2 (Tim): the chaser keeps its usual head-start gap behind the LAST skier to leave the
   // start line. A lift loser who starts 4 s late is not handed to the chaser; the penalty is
@@ -302,6 +307,20 @@ cv.addEventListener('pointermove',e=>{if(e.pointerId!==pid)return;touchX=e.clien
 const endPtr=e=>{if(e.pointerId===pid){pid=null;touchX=null;}};
 cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
 $('itemBtn').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(mode==='race'&&S&&S.cd<=0)useItem(S.racers[0]);});
+let jumpHeld=false;
+$('jumpBtn').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();jumpHeld=true;try{$('jumpBtn').setPointerCapture(e.pointerId);}catch(_){}});
+for(const ev of['pointerup','pointercancel','lostpointercapture'])$('jumpBtn').addEventListener(ev,()=>{jumpHeld=false;});
+// v0.3.4: gamepad (standard mapping). Edges fire once per press.
+let padPrev={};
+function readPad(){
+  const list=typeof navigator!=='undefined'&&navigator.getGamepads?navigator.getGamepads():[];
+  let gp=null;for(const g of list)if(g&&g.connected){gp=g;break;}
+  if(!gp){padPrev={};return null;}
+  const b=i=>!!(gp.buttons[i]&&gp.buttons[i].pressed),v=i=>gp.buttons[i]?gp.buttons[i].value:0;
+  const st={x:Math.abs(gp.axes[0]||0)>0.15?gp.axes[0]:0,a:b(0),b:b(1),x2:b(2),lt:v(6)>0.3,rt:v(7)>0.3,up:b(12),down:b(13),left:b(14),right:b(15)};
+  st.edge={};for(const k of['a','b','x2','up','down','left','right'])st.edge[k]=st[k]&&!padPrev[k];
+  padPrev=st;return st;
+}
 $('poleBtn').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(mode==='race'&&S&&S.cd<=0)poleJab(S.racers[0]);});
 
 // ---------- Racers ----------
@@ -322,6 +341,9 @@ function updRacer(r,dt,inp){
   const turn=CFG.TURN*(air?0.2:1);
   let target=r.want;
   if(inp)target=inp.touch!==null?inp.touch:(inp.dir&&!air?r.a+inp.dir*9:r.a); // v0.3.3: arrows are tricks in the air
+  // v0.3.4 (Tim): hold to charge before a ramp. No turning while charging; letting go or any hit drops it.
+  const charging=!air&&S.t>=r.delay&&(inp?!!inp.charge:!!r.botChg);
+  if(charging){r.chg=Math.min(1,r.chg+dt/PT.CHARGE_TIME);target=r.a;}else if(!air)r.chg=0;
   const prevA=r.a;
   r.a=clamp(r.a+clamp(target-r.a,-turn*dt,turn*dt),-1.45,1.45);
   r.turning=Math.abs(target-prevA)>0.25;
@@ -352,7 +374,7 @@ function collide(r){
     }
     if(r.air>0||r.crash>0)return;
     if(o.type==='ramp'){
-      if(d2<28*28&&r.spd>120&&r.lastRamp!==o){r.lastRamp=o;r.air=0.4+r.spd/800;r.airMax=r.air;r.tr={moves:[],cur:null,t:0,since:0,next:null,locked:false,plan:r.isPlayer?0:Math.min(3,Math.floor(simRandom()*(1+r.skill*3)))};if(r.isPlayer)toast('Big air!');}
+      if(d2<28*28&&r.spd>120&&r.lastRamp!==o){r.lastRamp=o;const full=r.chg>=1;r.air=(PT.AIR_BASE+r.spd*PT.AIR_PER_SPD)*(1+PT.CHARGE_AIR*r.chg);r.chg=0;r.airMax=r.air;r.tr={moves:[],cur:null,t:0,full};if(r.isPlayer)toast(full?'MASSIVE air!':'Big air!',full);}
       return;
     }
     if(r.inv>0)return;
@@ -368,7 +390,7 @@ function collide(r){
 
 function crashR(r,kind){
   if(r.crash>0||r.state!=='race')return;
-  r.crash=1.05;r.spd=0;r.air=0;
+  r.crash=1.05;r.spd=0;r.air=0;r.chg=0;
   puff(r.x,r.y-6,14,'#cfe0f0');puff(r.x,r.y-6,5,r.color);
   if(r.isPlayer){S.shake=9;toast(fpick(CRASH[kind]||CRASH.tree));}
 }
@@ -393,52 +415,52 @@ function poleJab(r){
     if(r.isPlayer)toast('Whiff!');
   }
 }
-// Tricks: in the air each move takes TRICK_MOVE s. The next move must be pressed once the
-// current one is TRICK_EARLY done (too early locks the combo) and no later than TRICK_LATE
-// after it finishes (too late ends the combo). Land mid-move = bail.
+// v0.3.4 (Tim): no timing windows. Every arrow / d-pad press in the air is a move; do as many
+// as you can between the ramp and the snow. Each press plays a short animation, and landing
+// while one is still playing is a bail, so the risk is getting greedy at the end.
 function trickInput(r,m){
-  const tr=r.tr;
-  if(!tr||r.air<=0||r.crash>0||tr.locked)return;
-  if(tr.cur){
-    if(tr.t/PT.TRICK_MOVE<PT.TRICK_EARLY){tr.locked=true;if(r.isPlayer)toast('Too early!');return;}
-    tr.next=m;return;
-  }
-  if(tr.moves.length&&tr.since>PT.TRICK_LATE){tr.locked=true;return;}
-  tr.cur=m;tr.t=0;
+  const tr=r.tr;if(!tr||r.air<=0||r.crash>0)return;
+  tr.moves.push(m);tr.cur=m;tr.t=0;
 }
 function updTrick(r,dt){
   const tr=r.tr;if(!tr)return;
-  if(tr.cur){
-    tr.t+=dt;
-    if(tr.t>=PT.TRICK_MOVE){tr.moves.push(tr.cur);tr.cur=null;tr.t=0;tr.since=0;if(tr.next){const n=tr.next;tr.next=null;tr.cur=n;}}
-  }else if(tr.moves.length){tr.since+=dt;if(tr.since>PT.TRICK_LATE)tr.locked=true;}
-  // Bots: start moves while the air left looks long enough; shakier bots misjudge it.
-  if(!r.isPlayer&&!tr.cur&&!tr.locked&&tr.moves.length<tr.plan){
-    if(r.air-dt>PT.TRICK_MOVE*(1.1-(1-r.skill)*1.4))trickInput(r,'LRFG'[Math.floor(simRandom()*4)]);
-    else tr.plan=tr.moves.length;
-  }
+  if(tr.cur){tr.t+=dt;if(tr.t>=PT.TRICK_ANIM)tr.cur=null;}
+  // Bots mash at a skill-based rate and stop when the snow looks close; shaky bots cut it fine.
+  if(!r.isPlayer&&!tr.cur&&r.air-dt>PT.TRICK_ANIM*(1.3-(1-r.skill)*1.6)&&simRandom()<PT.BOT_MASH*r.skill*dt)
+    trickInput(r,'LRFG'[Math.floor(simRandom()*4)]);
 }
 function trickName(moves){
-  const out=[];let i=0;
-  while(i<moves.length){
-    const m=moves[i];
-    if(MOVES[m].kind==='spin'){let n=0;while(i<moves.length&&moves[i]===m){n++;i++;}out.push(String(360*n));}
-    else{out.push(MOVES[m].name);i++;}
+  const n=k=>moves.filter(m=>MOVES[m].kind===k).length,times=c=>c===1?'':c===2?'Double ':c===3?'Triple ':c+'x ';
+  const out=[],seen=new Set();
+  for(const m of moves){
+    const k=MOVES[m].kind;if(seen.has(k))continue;seen.add(k);
+    out.push(k==='spin'?String(360*n('spin')):k==='flip'?times(n('flip'))+'Backflip':times(n('grab'))+'Grab');
   }
   return out.join(' + ');
 }
+// Each move is worth TRICK_NEW, or TRICK_SAME if it repeats the one before (mixing it up is
+// more intricate), plus TRICK_VARIETY per extra kind, capped so mashing can't run away.
+function trickBoost(moves){
+  let b=0;moves.forEach((m,i)=>{b+=i&&moves[i-1]===m?PT.TRICK_SAME:PT.TRICK_NEW;});
+  return Math.min(PT.TRICK_BOOST_CAP,b+PT.TRICK_VARIETY*(new Set(moves.map(m=>MOVES[m].kind)).size-1));
+}
 function land(r){
   const tr=r.tr;r.tr=null;if(!tr)return;
-  if(tr.cur){crashR(r,'bail');r.tricks.push({name:trickName([...tr.moves,tr.cur]),bailed:true});return;}
+  if(tr.cur){crashR(r,'bail');r.tricks.push({name:trickName(tr.moves),moves:[...tr.moves],bailed:true,full:tr.full});return;}
   if(!tr.moves.length)return;
-  const kinds=new Set(tr.moves.map(m=>MOVES[m].kind)).size;
-  const boost=PT.TRICK_BOOST*tr.moves.length+PT.TRICK_VARIETY*(kinds-1);
+  const boost=trickBoost(tr.moves),name=trickName(tr.moves);
   r.boost=Math.max(r.boost,boost);
-  const name=trickName(tr.moves);
-  r.tricks.push({name,moves:[...tr.moves],boost}); // logged for achievements later
+  r.tricks.push({name,moves:[...tr.moves],boost,full:tr.full}); // logged for achievements later
   puff(r.x,r.y,8,'#ffc93c');
-  if(r.isPlayer)toast(`${name}! +${boost.toFixed(1)}s boost`,tr.moves.length>=3);
-  else if(tr.moves.length>=3)toast(`${r.name}: ${name}!`);
+  if(r.isPlayer)toast(`${name}! ${tr.moves.length} moves, +${boost.toFixed(1)}s boost`,tr.moves.length>=6);
+  else if(tr.moves.length>=8)toast(`${r.name}: ${name}!`);
+}
+// v0.3.4: bots charge only when lined up with a ramp ahead (charging locks their steering).
+function botCharge(r){
+  r.botChg=false;
+  if(r.air>0||r.crash>0||r.spd<150||S.t<r.delay)return;
+  const ta=Math.tan(r.a);
+  queryObs(r.y+40,r.y+700,o=>{if(o.type!=='ramp'||r.lastRamp===o)return;if(Math.abs(r.x+ta*(o.y-r.y)-o.x)<16)r.botChg=true;});
 }
 function finish(r){
   r.state='finished';r.fin=S.t;
@@ -464,6 +486,7 @@ function bumps(){
     if(d<18&&d>0.01){
       const nx=dx/d,ny=dy/d,push=(18-d)/2;
       a.x-=nx*push;a.y-=ny*push;b.x+=nx*push;b.y+=ny*push;
+      a.chg=0;b.chg=0; // v0.3.4: any hit cancels a charge
       const diff=a.spd-b.spd;
       if(Math.abs(diff)>140){const loser=diff>0?b:a;if(loser.inv<=0){crashR(loser,'bump');if(!loser.isPlayer&&(a.isPlayer||b.isPlayer))toast(`You rammed ${loser.name}!`);}}
       else{a.spd*=0.9;b.spd*=0.9;}
@@ -688,9 +711,18 @@ function step(dt){
     const psx=V3.on?V3.psx:(p.x-S.cam.x)*SC+W/2; // v0.2.0: skier's on-screen x in the 3D view
     tch=clamp((touchX-rect.left-psx)/(W*0.3),-1,1)*1.3;
   }
-  const inp={dir:(keys['arrowright']||keys['d']?1:0)-(keys['arrowleft']||keys['a']?1:0),touch:tch,tuck:!!(keys['arrowdown']||keys['s']),brake:!!(keys['arrowup']||keys['w'])};
+  const pad=readPad();
+  let pdir=0,ptouch=null;
+  if(pad){
+    if(pad.x)ptouch=pad.x*1.3;pdir=(pad.right?1:0)-(pad.left?1:0);
+    if(pad.edge.b)useItem(p);if(pad.edge.x2)poleJab(p);
+    if(p.air>0)for(const [k,m] of[['up','F'],['down','G'],['left','L'],['right','R']])if(pad.edge[k])trickInput(p,m);
+  }
+  const kdir=(keys['arrowright']||keys['d']?1:0)-(keys['arrowleft']||keys['a']?1:0);
+  const inp={dir:kdir||pdir,touch:tch!==null?tch:ptouch,tuck:!!(keys['arrowdown']||keys['s']||(pad&&pad.rt)),brake:!!(keys['arrowup']||keys['w']||(pad&&pad.lt)),
+    charge:!!(keys['shift']||jumpHeld||(pad&&pad.a))};
   for(const r of S.racers){
-    if(!r.isPlayer&&r.state==='race'){think(r,dt);botItem(r,dt);botPole(r,dt);}
+    if(!r.isPlayer&&r.state==='race'){think(r,dt);botItem(r,dt);botPole(r,dt);botCharge(r);}
     updRacer(r,dt,r.isPlayer?inp:null);
     if(r.state==='race'&&r.air<=0&&r.crash<=0&&r.spd>170&&(r.turning||Math.abs(r.a)>0.55)&&fxRandom()<0.6){
       const side=Math.sign(r.a)||1;
@@ -699,6 +731,7 @@ function step(dt){
   }
   bumps();updNpcs(dt);updProj(dt);updChaser(dt);
   $('poleBtn').classList.toggle('cool',p.poleCd>0||p.state!=='race');
+  {const jb=$('jumpBtn');jb.style.setProperty('--c',Math.round(p.chg*100)+'%');jb.classList.toggle('full',p.chg>=1);}
   if(S.flare){S.flare.time-=dt;if(S.flare.time<=0||S.flare.t.state!=='race')S.flare=null;}
   updParts(dt);
   S.shake=Math.max(0,S.shake-dt*30);
@@ -814,11 +847,11 @@ function drawRacer(r){
   if(r.boost>0){ctx.strokeStyle='rgba(255,201,60,.8)';ctx.lineWidth=2;ctx.beginPath();for(const sd of[-1,1]){ctx.moveTo(r.x+sd*8,r.y-14-h);ctx.lineTo(r.x+sd*8-Math.sin(r.a)*22,r.y-14-h-Math.cos(r.a)*22);}ctx.stroke();}
   if(r.inv>0&&r.crash<=0&&Math.floor(r.inv*10)%2===0)ctx.globalAlpha=.45;
   let da=0;
-  if(r.tr&&r.air>0){for(const m of r.tr.moves){const q=MOVES[m];if(q.kind==='spin')da+=q.dir*6.283;}
-    if(r.tr.cur&&MOVES[r.tr.cur].kind==='spin')da+=MOVES[r.tr.cur].dir*6.283*Math.min(1,r.tr.t/PT.TRICK_MOVE);}
+  if(r.tr&&r.air>0){const n=r.tr.moves.length;r.tr.moves.forEach((m,i)=>{const q=MOVES[m];if(q.kind==='spin')da+=q.dir*6.283*(i===n-1&&r.tr.cur?Math.min(1,r.tr.t/PT.TRICK_ANIM):1);});}
   drawSkier(r.x,r.y,r.a+da,r.color,{h,sc,fallen:r.crash>0});
   if(r.poleT>0){ctx.strokeStyle='#55606f';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(r.x+r.poleSide*6,r.y-14);ctx.lineTo(r.x+r.poleSide*(10+30*Math.sin((1-r.poleT/PT.POLE_ANIM)*Math.PI)),r.y-6);ctx.stroke();}
-  if(r.tr&&r.air>0&&(r.tr.moves.length||r.tr.cur)){ctx.font='800 10px Rubik, system-ui, sans-serif';ctx.textAlign='center';ctx.fillStyle='#ffc93c';ctx.fillText(trickName([...r.tr.moves,...(r.tr.cur?[r.tr.cur]:[])]),r.x,r.y-h-52);}
+  if(r.tr&&r.air>0&&r.tr.moves.length){ctx.font='800 10px Rubik, system-ui, sans-serif';ctx.textAlign='center';ctx.fillStyle='#ffc93c';ctx.fillText(trickName(r.tr.moves),r.x,r.y-h-52);}
+  if(r.chg>0){ctx.strokeStyle=r.chg>=1?'#ffc93c':'rgba(255,201,60,.6)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(r.x,r.y-12,18,-Math.PI/2,-Math.PI/2+6.283*r.chg);ctx.stroke();}
   ctx.globalAlpha=1;
   if(r.crash>0){ctx.fillStyle='#ffc93c';for(let i=0;i<3;i++){const a=S.t*6+i*2.1;ctx.beginPath();ctx.arc(r.x+Math.cos(a)*12,r.y-26+Math.sin(a)*4,2.5,0,6.283);ctx.fill();}}
   const label=r.isPlayer?'YOU':r.name,ly=r.y-h-38;
@@ -1316,13 +1349,12 @@ function render3D(){
     k.wasAir=air;k.sq+=(1-k.sq)*Math.min(1,9*dt);
     // v0.3.3: spins, flips and grabs come from the trick system (the automatic 360 is gone).
     let sy=0,fx=0,grab=0;
-    if(air&&r.tr){for(const m of r.tr.moves){const q=MOVES[m];if(q.kind==='spin')sy+=q.dir;else if(q.kind==='flip')fx+=1;}
-      if(r.tr.cur){const q=MOVES[r.tr.cur],pr=Math.min(1,r.tr.t/PT.TRICK_MOVE);if(q.kind==='spin')sy+=q.dir*pr;else if(q.kind==='flip')fx+=pr;else grab=Math.sin(pr*Math.PI);}}
+    if(air&&r.tr){const n=r.tr.moves.length;r.tr.moves.forEach((m,j)=>{const q=MOVES[m],pr=j===n-1&&r.tr.cur?Math.min(1,r.tr.t/PT.TRICK_ANIM):1;if(q.kind==='spin')sy+=q.dir*pr;else if(q.kind==='flip')fx+=pr;else if(pr<1)grab=Math.sin(pr*Math.PI);});}
     k.body.rotation.y=air?sy*Math.PI*2:0;
     if(r.crash>0){const w=Math.sin(t*14)*0.1;k.lean.rotation.set(0.2,0,1.35+w);k.stars.visible=true;k.stars.rotation.y=t*6;}
     else{k.lean.rotation.set(0,0,-k.leanV);k.stars.visible=false;}
     k.body.rotation.x=r.crash>0?0:-(0.12+Math.min(1,r.spd/400)*0.18+(tuck?0.35:0))-fx*Math.PI*2-grab*0.5;
-    const crouch=tuck?0.78:1;
+    const crouch=(tuck?0.78:1)*(1-0.22*(r.chg||0)); // v0.3.4: crouch deeper while charging
     k.lean.scale.set(1/Math.sqrt(k.sq),k.sq*crouch,1/Math.sqrt(k.sq));
     k.body.position.y=air?0:Math.sin(t*9+i)*0.03*Math.min(1,r.spd/400);
     for(const [sd,a] of[[-1,k.P.arms[0]],[1,k.P.arms[1]]])a.rotation.z=air?sd*(2.2-2.6*grab):sd*(0.5+(tuck?-0.3:0));
