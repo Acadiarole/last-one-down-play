@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Last One Down (prototype v0.3.2)</title>
+<title>Last One Down (prototype v0.3.6)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
@@ -113,7 +113,7 @@ td.num{text-align:right}
 
   <div id="menu" class="overlay">
     <div class="ticket">
-      <div class="meta">Prototype v0.3.5 (3D, mountain of 4 bowls, pole jab, charge jumps + trick mashing), working title</div>
+      <div class="meta">Prototype v0.3.6 (3D, mountain of 4 bowls, pole jab, charge jumps, trick mashing, snowball trench), working title</div>
       <h1>Last One Down</h1>
       <p class="sub">Race your friends to the lodge while something comes down the mountain behind you. You don't have to be fast. You have to be faster than the slowest skier.</p>
       <p class="sub">A mountain is four bowls with a chairlift between them. Everyone starts each bowl together; points decide who wins the mountain.</p>
@@ -127,7 +127,8 @@ td.num{text-align:right}
       <button class="go" id="goBtn">Drop in</button>
       <div class="stub help">
         <b>Phone:</b> hold and drag left or right of your skier to carve. Tap the round button to use an item, POLE to jab whoever is beside you. Hold CHARGE before a ramp for more air. In the air, flick up, down, left or right as many times as you can for tricks.<br>
-        <b>Keyboard:</b> ← → steer, ↓ tuck, ↑ brake, Space uses an item, F jabs your pole, hold Shift to charge a jump, C changes the camera.<br><b>Controller:</b> left stick or d-pad steers, A (hold) charges a jump, X jabs your pole, B uses an item, RT tuck, LT brake.<br><b>Pole jab:</b> knock over a skier right beside or just ahead of you and get a speed boost. Miss and you wobble. 3 s to recharge.<br><b>Charge jump:</b> hold Shift / A / CHARGE on the way to a ramp. You can't turn while charging, and any hit cancels it. A full charge (1.5 s) sends you much higher.<br><b>Tricks:</b> in the air, mash ← → (spin), ↑ (backflip), ↓ (grab) as many times as you can. Mixing them up is worth more than repeating one. Land clean for a speed boost; still mid-move when you hit the snow? You bail.<br>
+        <b>Keyboard:</b> ← → steer, ↓ tuck, ↑ brake, Space uses an item, F jabs your pole, hold Shift to charge a jump, C changes the camera.<br><b>Controller:</b> left stick or d-pad steers, A (hold) charges a jump, X jabs your pole, B uses an item, RT tuck, LT brake.<br><b>Pole jab:</b> knock over a skier right beside or just ahead of you and get a speed boost. Miss and you wobble. 3 s to recharge.<br><b>Snowball trench:</b> the snowball carves a trench as wide as itself. Ski out across its lip and it launches you like a small ramp (charge and tricks work there too).<br>
+        <b>Charge jump:</b> hold Shift / A / CHARGE on the way to a ramp. You can't turn while charging, and any hit cancels it. A full charge (1.5 s) sends you much higher.<br><b>Tricks:</b> in the air, mash ← → (spin), ↑ (backflip), ↓ (grab) as many times as you can. Mixing them up is worth more than repeating one. Land clean for a speed boost; still mid-move when you hit the snow? You bail.<br>
         <b>Camera:</b> tap the camera button (bottom left) for Chase, High, Overhead, Skier's eye or Classic 2D.<br>
         Hit the yellow crates for ⚡ Speed Wax, ❄️ Snowball Cannon, or 🎯 Bullseye Flare, which marks the racer ahead so the chaser goes after them.
       </div>
@@ -160,6 +161,8 @@ const PT={POLE_REACH:38,POLE_BEHIND:12,POLE_CD:3,POLE_BOOST:1.2,POLE_MISS:0.85,P
   // v0.3.4 (Tim): no trick timer, mash as many moves as the air allows; charge jumps.
   TRICK_ANIM:0.18,TRICK_NEW:0.25,TRICK_SAME:0.1,TRICK_VARIETY:0.3,TRICK_BOOST_CAP:3.5,BOT_MASH:5,
   AIR_BASE:0.8,AIR_PER_SPD:1/400,CHARGE_TIME:1.5,CHARGE_AIR:0.7,
+  // v0.3.6 (Tim): the snowball leaves a trench; skiing out over its lip is a jump.
+  TRENCH_STEP:20,TRENCH_W:0.9,LIP_AIR:0.7,LIP_LAT:60,
   SB_CAP:280,SB_CAPACITY:0.5};
 const MOVES={L:{kind:'spin',dir:-1},R:{kind:'spin',dir:1},F:{kind:'flip',name:'Backflip'},G:{kind:'grab',name:'Grab'}};
 const ITEMS={flare:{icon:'🎯',name:'Bullseye Flare'},cannon:{icon:'❄️',name:'Snowball Cannon'},wax:{icon:'⚡',name:'Speed Wax'}};
@@ -271,14 +274,14 @@ function newRun(type,delays){
   S={t:0,cd:2.4,type,obs:[],buckets:new Map(),npcs:[],racers:[],proj:[],parts:[],flare:null,over:false,shown:false,endT:0,shake:0,cam:{x:0,y:-(H/SC)*0.3}};
   ROSTER.forEach((p,i)=>S.racers.push({...p,id:i,x:(i-1.5)*60,y:0,a:0,spd:0,crash:0,inv:0,air:0,airMax:1,item:null,hold:0,boost:0,slow:0,
     state:'race',fin:0,eatT:0,powder:false,think:0,want:0,trail:[],tt:0,lastRamp:null,turning:false,
-    poleCd:0,poleT:0,poleSide:1,tr:null,tricks:[],chg:0,botChg:false,
+    poleCd:0,poleT:0,poleSide:1,tr:null,tricks:[],chg:0,botChg:false,inTr:false,lips:0,
     delay:(delays&&delays[i])||0}));
   // v0.3.2 (Tim): the chaser keeps its usual head-start gap behind the LAST skier to leave the
   // start line. A lift loser who starts 4 s late is not handed to the chaser; the penalty is
   // only the lost time against the other racers.
   S.chGrace=CFG.GRACE+Math.max(0,...S.racers.map(r=>r.delay));
   genCourse();
-  S.ch={type,x:0,y:CFG.CH_START,r:36,rot:0,pause:0,munch:0,anim:0,stuck:[],swallowed:0};
+  S.ch={type,x:0,y:CFG.CH_START,r:36,rot:0,pause:0,munch:0,anim:0,stuck:[],swallowed:0,trench:[]};
   chEl.textContent=CHASERS[type].icon;
 }
 
@@ -357,6 +360,7 @@ function updRacer(r,dt,inp){
   if(air){updTrick(r,dt);r.air-=dt;if(r.air<=0){r.air=0;puff(r.x,r.y,6,'#cfe0f0');land(r);}}
   r.tt+=dt;if(r.tt>0.05){r.tt=0;r.trail.push(r.air>0?null:{x:r.x,y:r.y});if(r.trail.length>50)r.trail.shift();}
   r.powder=false;
+  trenchLip(r);
   collide(r);
   if(r.state==='race'&&r.y>=CFG.L)finish(r);
 }
@@ -374,7 +378,7 @@ function collide(r){
     }
     if(r.air>0||r.crash>0)return;
     if(o.type==='ramp'){
-      if(d2<28*28&&r.spd>120&&r.lastRamp!==o){r.lastRamp=o;const full=r.chg>=1;r.air=(PT.AIR_BASE+r.spd*PT.AIR_PER_SPD)*(1+PT.CHARGE_AIR*r.chg);r.chg=0;r.airMax=r.air;r.tr={moves:[],cur:null,t:0,full};if(r.isPlayer)toast(full?'MASSIVE air!':'Big air!',full);}
+      if(d2<28*28&&r.spd>120&&r.lastRamp!==o){r.lastRamp=o;takeoff(r,1,'ramp');}
       return;
     }
     if(r.inv>0)return;
@@ -456,6 +460,28 @@ function land(r){
   else if(tr.moves.length>=8)toast(`${r.name}: ${name}!`);
 }
 // v0.3.4: bots charge only when lined up with a ramp ahead (charging locks their steering).
+// v0.3.6: one takeoff for ramps and trench lips. mult scales the air (lips are smaller).
+function takeoff(r,mult,kind){
+  const full=r.chg>=1;
+  r.air=(PT.AIR_BASE+r.spd*PT.AIR_PER_SPD)*mult*(1+PT.CHARGE_AIR*r.chg);r.chg=0;r.airMax=r.air;r.inTr=false;
+  r.tr={moves:[],cur:null,t:0,full};if(kind==='lip')r.lips++;
+  if(r.isPlayer)toast(full?'MASSIVE air!':kind==='lip'?'Trench lip!':'Big air!',full);
+}
+// The trench under y (interpolated centre x and ball radius there), or null.
+function trenchAt(y){
+  const t=S.ch.trench;if(!t||t.length<2||y<t[0].y||y>t[t.length-1].y)return null;
+  let lo=0,hi=t.length-1;while(hi-lo>1){const m=(lo+hi)>>1;if(t[m].y<=y)lo=m;else hi=m;}
+  const a=t[lo],b=t[hi],f=(y-a.y)/((b.y-a.y)||1);return {x:a.x+(b.x-a.x)*f,r:a.r+(b.r-a.r)*f};
+}
+// Skiing OUT of the trench across its lip, with real sideways speed, launches you.
+function trenchLip(r){
+  if(S.ch.type!=='snowball'||r.air>0||r.crash>0)return;
+  const q=trenchAt(r.y);
+  if(!q){r.inTr=false;return;}
+  const inside=Math.abs(r.x-q.x)<q.r*PT.TRENCH_W;
+  if(r.inTr&&!inside&&r.spd>120&&Math.abs(Math.sin(r.a))*r.spd>PT.LIP_LAT)takeoff(r,PT.LIP_AIR,'lip');
+  else r.inTr=inside;
+}
 function botCharge(r){
   r.botChg=false;
   if(r.air>0||r.crash>0||r.spd<150||S.t<r.delay)return;
@@ -640,6 +666,7 @@ function updChaser(dt){
     c.y+=base*fl*dt;
     c.x=clamp(approach(c.x,tgt.x,(flared?200:90)*dt),-CFG.HW+c.r*0.5,CFG.HW-c.r*0.5);
     c.r=Math.min(PT.SB_CAP,c.r+1.1*dt);c.rot+=base*dt/c.r;
+    if(!c.trench.length||c.y-c.trench[c.trench.length-1].y>=PT.TRENCH_STEP)c.trench.push({x:c.x,y:c.y,r:c.r});
     queryObs(c.y-c.r-40,c.y+c.r+40,o=>{
       if(o.edge||o.type==='powder')return;
       if(Math.hypot(o.x-c.x,o.y-c.y)<c.r+4){
@@ -971,6 +998,15 @@ function render2D(){
   for(let x=-HW+19;x<HW;x+=38){ctx.moveTo(x,y0);ctx.lineTo(x,y1);}ctx.stroke();
   ctx.strokeStyle='rgba(31,95,168,.25)';ctx.setLineDash([14,12]);ctx.lineWidth=2;ctx.beginPath();
   ctx.moveTo(-HW,y0);ctx.lineTo(-HW,y1);ctx.moveTo(HW,y0);ctx.lineTo(HW,y1);ctx.stroke();ctx.setLineDash([]);
+  // v0.3.6: the snowball's trench (floor, then a bright lip on each side)
+  if(S.ch.type==='snowball'&&S.ch.trench.length>1){
+    const t=S.ch.trench;ctx.lineCap='round';
+    for(let i=1;i<t.length;i++){const a=t[i-1],b=t[i];if(b.y<y0||a.y>y1)continue;
+      ctx.strokeStyle='rgba(140,172,208,.35)';ctx.lineWidth=(a.r+b.r)*PT.TRENCH_W;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+    for(const sd of[-1,1]){ctx.strokeStyle='#ffffff';ctx.lineWidth=5;ctx.beginPath();let pen=false;
+      for(const q of t){if(q.y<y0-40||q.y>y1+40){pen=false;continue;}const x=q.x+sd*q.r*PT.TRENCH_W;if(pen)ctx.lineTo(x,q.y);else{ctx.moveTo(x,q.y);pen=true;}}
+      ctx.stroke();}
+  }
   // ski tracks
   ctx.lineWidth=3;ctx.lineCap='round';
   for(const r of S.racers){
@@ -1299,6 +1335,12 @@ function buildRun(){
     const tg=new T.BufferGeometry();tg.setAttribute('position',new T.BufferAttribute(new Float32Array(50*2*6*3),3));
     const tm=new T.Mesh(tg,new T.MeshBasicMaterial({color:'#a8c2de',transparent:true,opacity:0.6,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2}));tm.frustumCulled=false;grp.add(tm);RUN.trails.push(tm);
   });
+  // v0.3.6: snowball trench, a darker floor ribbon plus a white ridge on each lip.
+  if(S.ch.type==='snowball'){
+    const mk=(n,col,op)=>{const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(new Float32Array(n*3),3));
+      const m=new T.Mesh(g,new T.MeshBasicMaterial({color:col,transparent:op<1,opacity:op,depthWrite:op>=1,polygonOffset:true,polygonOffsetFactor:-1,side:T.DoubleSide}));m.frustumCulled=false;grp.add(m);return m;};
+    RUN.trFloor=mk(300*6,'#9fb6d0',0.55);RUN.trLip=mk(300*12,'#ffffff',1);RUN.trLipIn=mk(300*12,'#c9d8ea',1);
+  }
   for(const n of S.npcs){
     let k;
     if(n.kind==='dog')k=makeDog(n.col);
@@ -1376,6 +1418,23 @@ function render3D(){
     }
     tr.geometry.setDrawRange(0,n/3);tr.geometry.attributes.position.needsUpdate=true;
   });
+  if(RUN.trFloor){
+    const t=S.ch.trench,fa=RUN.trFloor.geometry.attributes.position.array,la=RUN.trLip.geometry.attributes.position.array,ia=RUN.trLipIn.geometry.attributes.position.array;
+    let nf=0,nl=0,ni=0,segs=0;const cy=f.y,RH=0.45,B=0.55;
+    const put=(arr,n,v)=>{arr[n]=v[0];arr[n+1]=v[1];arr[n+2]=v[2];return n+3;};
+    for(let i=1;i<t.length&&segs<300;i++){
+      const a=t[i-1],b=t[i];if(b.y<cy-900||a.y>cy+3200)continue;segs++;
+      const az=-a.y*S3,bz=-b.y*S3,wa=a.r*PT.TRENCH_W*S3,wb=b.r*PT.TRENCH_W*S3;
+      const P=(q,off,h,z)=>{const X=q.x*S3+off;return [X,gh(X)+h,z];};
+      for(const v of[P(a,-wa,0.03,az),P(b,-wb,0.03,bz),P(b,wb,0.03,bz),P(a,-wa,0.03,az),P(b,wb,0.03,bz),P(a,wa,0.03,az)])nf=put(fa,nf,v);
+      for(const sd of[-1,1]){
+        const ia0=P(a,sd*(wa-B),0.04,az),ib0=P(b,sd*(wb-B),0.04,bz),pa=P(a,sd*wa,RH,az),pb=P(b,sd*wb,RH,bz),oa=P(a,sd*(wa+B),0.04,az),ob=P(b,sd*(wb+B),0.04,bz);
+        for(const v of[ia0,ib0,pb,ia0,pb,pa])ni=put(ia,ni,v);
+        for(const v of[pa,pb,ob,pa,ob,oa])nl=put(la,nl,v);
+      }
+    }
+    for(const [m,n] of[[RUN.trFloor,nf],[RUN.trLip,nl],[RUN.trLipIn,ni]]){m.geometry.setDrawRange(0,n/3);m.geometry.attributes.position.needsUpdate=true;}
+  }
   // Slope traffic.
   S.npcs.forEach((n,i)=>{
     const k=RUN.npcs[i];k.g.visible=!n.dead&&Math.abs(n.y-camY)<3200;if(!k.g.visible)return;
