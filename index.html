@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Last One Down (prototype v0.3.1)</title>
+<title>Last One Down (prototype v0.3.2)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
@@ -107,7 +107,7 @@ td.num{text-align:right}
 
   <div id="menu" class="overlay">
     <div class="ticket">
-      <div class="meta">Prototype v0.3.1 (3D, mountain of 4 bowls), working title</div>
+      <div class="meta">Prototype v0.3.2 (3D, mountain of 4 bowls), working title</div>
       <h1>Last One Down</h1>
       <p class="sub">Race your friends to the lodge while something comes down the mountain behind you. You don't have to be fast. You have to be faster than the slowest skier.</p>
       <p class="sub">A mountain is four bowls with a chairlift between them. Everyone starts each bowl together; points decide who wins the mountain.</p>
@@ -259,9 +259,10 @@ function newRun(type,delays){
   ROSTER.forEach((p,i)=>S.racers.push({...p,id:i,x:(i-1.5)*60,y:0,a:0,spd:0,crash:0,inv:0,air:0,airMax:1,item:null,hold:0,boost:0,slow:0,
     state:'race',fin:0,eatT:0,powder:false,think:0,want:0,trail:[],tt:0,lastRamp:null,turning:false,
     delay:(delays&&delays[i])||0}));
-  // v0.3.1: everyone starts together; only a chairlift loser starts late. The chaser's clock
-  // runs from GO as usual, so a late starter really is closer to it (that is the penalty).
-  S.chGrace=CFG.GRACE;
+  // v0.3.2 (Tim): the chaser keeps its usual head-start gap behind the LAST skier to leave the
+  // start line. A lift loser who starts 4 s late is not handed to the chaser; the penalty is
+  // only the lost time against the other racers.
+  S.chGrace=CFG.GRACE+Math.max(0,...S.racers.map(r=>r.delay));
   genCourse();
   S.ch={type,x:0,y:CFG.CH_START,r:36,rot:0,pause:0,munch:0,anim:0,stuck:[]};
   chEl.textContent=CHASERS[type].icon;
