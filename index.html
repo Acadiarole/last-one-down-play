@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Last One Down (prototype v0.2.1)</title>
+<title>Last One Down (prototype v0.2.2)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
@@ -98,7 +98,7 @@ td.num{text-align:right}
 
   <div id="menu" class="overlay">
     <div class="ticket">
-      <div class="meta">Prototype v0.2.1 (3D, switchable camera), working title</div>
+      <div class="meta">Prototype v0.2.2 (3D, switchable camera), working title</div>
       <h1>Last One Down</h1>
       <p class="sub">Race your friends to the lodge while something comes down the mountain behind you. You don't have to be fast. You have to be faster than the slowest skier.</p>
       <div class="q">What's chasing you?</div>
@@ -344,7 +344,7 @@ function eat(r){
   if(r.state!=='race')return;
   r.state='eaten';r.eatT=S.t;r.spd=0;
   const c=S.ch;
-  if(c.type==='snowball')c.stuck.push({ang:frand(0,6.28),x:frand(-.6,.6),k:'racer',col:r.color});
+  if(c.type==='snowball')c.stuck.push({ang:frand(0,6.28),x:frand(-.6,.6),k:'racer',col:r.color,name:r.isPlayer?'YOU':r.name});
   puff(r.x,r.y-8,20,'#cfe0f0');
   toast(r.isPlayer?`You ${CHASERS[c.type].verb}!`:`${r.name} ${CHASERS[c.type].verb}`,r.isPlayer);
   if(r.isPlayer){S.shake=14;updItemBtn();}
@@ -517,7 +517,7 @@ function updChaser(dt){
     });
     for(const n of S.npcs){
       if(n.dead)continue;
-      if(Math.hypot(n.x-c.x,n.y-c.y)<c.r){n.dead=true;c.r=Math.min(150,c.r+2.2);if(c.stuck.length<40)c.stuck.push({ang:frand(0,6.28),x:frand(-.6,.6),k:'npc',col:n.col});}
+      if(Math.hypot(n.x-c.x,n.y-c.y)<c.r){n.dead=true;c.r=Math.min(150,c.r+2.2);if(c.stuck.length<40)c.stuck.push({ang:frand(0,6.28),x:frand(-.6,.6),k:'npc',col:n.col,kind:n.kind});}
     }
     for(const r of alive)if(Math.hypot(r.x-c.x,r.y-c.y)<c.r*0.92)eat(r);
     if(fxRandom()<0.5)S.parts.push({x:c.x+frand(-c.r,c.r),y:c.y+c.r*0.3,vx:frand(-60,60),vy:frand(20,90),life:.5,max:.5,c:'#cfe0f0',s:frand(2,4)});
@@ -1154,7 +1154,7 @@ function buildRun(){
   const c=S.ch;
   if(c.type==='snowball'){
     const spin=new T.Group(),ball=new T.Mesh(Lg.ball,M('#f4f9ff',true));ball.castShadow=true;spin.add(ball);grp.add(spin);
-    RUN.ch={spin,ball,bits:[]};
+    const tags=new T.Group();grp.add(tags);RUN.ch={spin,ball,bits:[],tags,tagN:0};
   }else if(c.type==='avalanche'){
     const g=new T.Group(),n=44,blobs=new T.InstancedMesh(Lg.blob,M('#f4f9ff',true),n*2);blobs.castShadow=true;blobs.frustumCulled=false;g.add(blobs);
     const slab=new T.Mesh(new T.BoxGeometry(230,15,160),M('#e3eef9'));slab.position.set(0,6,82);g.add(slab);
@@ -1231,12 +1231,37 @@ function render3D(){
       const st=c.stuck[R.bits.length],L=G.geo;let m;
       if(st.k==='tree')m=new T.Mesh(L.bitCone,G.M('#2c6247',true));
       else if(st.k==='rock')m=new T.Mesh(L.bitRock,G.M('#7d8896',true));
-      else if(st.k==='racer'||st.k==='npc')m=new T.Mesh(L.bitBody,G.M(st.col));
+      else if(st.k==='racer'||st.k==='npc'){
+        // v0.2.2: swallowed people are whole, recognisable figures stuck head-out in the
+        // ball and flailing, with a name tag for racers, so everyone sees who got rolled up.
+        const kind=st.kind||'';
+        const k=kind==='dog'?makeDog(st.col):makeSkier(st.col,{scale:st.k==='racer'?1.5:(kind==='kid'?0.8:1.1),
+          pizza:kind==='beginner'||kind==='kid',board:kind==='sitter'});
+        if(st.name){const lb=textSprite(st.name,st.col,5);lb.position.y=3.4;k.g.add(lb);}
+        m=k.g;m.userData.fig=k;m.userData.out=1.4;m.userData.ph=R.bits.length*1.7; // feet 1.4 m below the surface: waist-deep
+      }
       else m=new T.Mesh(L.bitBox,G.M(st.col));
       const q=Math.sqrt(Math.max(0,1-st.x*st.x));m.userData.dir=new T.Vector3(st.x,Math.sin(st.ang)*q,Math.cos(st.ang)*q).normalize();
       m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),m.userData.dir);m.castShadow=true;R.spin.add(m);R.bits.push(m);
     }
-    for(const m of R.bits)m.position.copy(m.userData.dir).multiplyScalar(rr*0.97);
+    // v0.2.2: one big name tag per swallowed racer, stacked above the ball and never rotating
+    // with it, so everyone can read who got rolled up no matter which side they are stuck on.
+    while(R.tagN<c.stuck.length){const st=c.stuck[R.tagN++];if(st.k!=='racer')continue;
+      const lb=textSprite(st.name||'?',st.col,9);lb.userData.i=R.tags.children.length;R.tags.add(lb);}
+    // Centred on the ball and drawn over it (depthTest off), so the names read from behind, beside
+    // or in front - in the mirror, as it rolls past you, and after it has gone by ahead of you.
+    // Tags grow with the ball so they stay legible on a 30 m snowball.
+    const tw=Math.max(9,rr*0.9);R.tags.position.set(X,gh(X)+rr*1.1,-c.y*S3);
+    R.tags.children.forEach(lb=>{lb.scale.set(tw,tw/4,1);lb.position.y=-lb.userData.i*tw*0.28;});
+    for(const m of R.bits){
+      m.position.copy(m.userData.dir).multiplyScalar(m.userData.out?Math.max(0.5,rr-m.userData.out):rr*0.97);
+      const f=m.userData.fig;
+      if(f&&f.P){ // flail: arms windmill, legs kick
+        const ph=t*13+m.userData.ph;
+        if(f.P.arms)f.P.arms.forEach((a,j)=>{a.rotation.z=(j?-1:1)*(1.7+Math.sin(ph+j*2.1)*0.9);a.rotation.x=Math.cos(ph*0.8+j)*0.6;});
+        if(f.P.legs)f.P.legs.forEach((l,j)=>{l.rotation.x=Math.sin(ph*1.3+j*3.1)*0.7;});
+      }
+    }
   }else if(c.type==='avalanche'){
     R.g.position.set(0,0,-c.y*S3);const Dm=G.dummy||(G.dummy=new T.Object3D());
     for(let row=0;row<2;row++)for(let i=0;i<R.n;i++){
