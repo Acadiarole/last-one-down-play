@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Last One Down (prototype v0.3.0)</title>
+<title>Last One Down (prototype v0.3.1)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
@@ -107,10 +107,10 @@ td.num{text-align:right}
 
   <div id="menu" class="overlay">
     <div class="ticket">
-      <div class="meta">Prototype v0.3.0 (3D, mountain of 4 bowls), working title</div>
+      <div class="meta">Prototype v0.3.1 (3D, mountain of 4 bowls), working title</div>
       <h1>Last One Down</h1>
       <p class="sub">Race your friends to the lodge while something comes down the mountain behind you. You don't have to be fast. You have to be faster than the slowest skier.</p>
-      <p class="sub">A mountain is four bowls with a chairlift between them. Points add up, and your place in each bowl sets your start in the next one.</p>
+      <p class="sub">A mountain is four bowls with a chairlift between them. Everyone starts each bowl together; points decide who wins the mountain.</p>
       <div class="q">What's chasing you?</div>
       <div class="chs" id="chs">
         <button data-ch="random" class="on">🎲 Random</button>
@@ -259,9 +259,9 @@ function newRun(type,delays){
   ROSTER.forEach((p,i)=>S.racers.push({...p,id:i,x:(i-1.5)*60,y:0,a:0,spd:0,crash:0,inv:0,air:0,airMax:1,item:null,hold:0,boost:0,slow:0,
     state:'race',fin:0,eatT:0,powder:false,think:0,want:0,trail:[],tt:0,lastRamp:null,turning:false,
     delay:(delays&&delays[i])||0}));
-  // v0.3.0: staggered start. The chaser's clock starts when the LAST skier leaves, so a late
-  // starter is never caught at the start line before they could move.
-  S.chGrace=CFG.GRACE+Math.max(0,...S.racers.map(r=>r.delay));
+  // v0.3.1: everyone starts together; only a chairlift loser starts late. The chaser's clock
+  // runs from GO as usual, so a late starter really is closer to it (that is the penalty).
+  S.chGrace=CFG.GRACE;
   genCourse();
   S.ch={type,x:0,y:CFG.CH_START,r:36,rot:0,pause:0,munch:0,anim:0,stuck:[]};
   chEl.textContent=CHASERS[type].icon;
@@ -1393,7 +1393,7 @@ function toast(t,big){
 
 // ---------- Screens (v0.3.0: a mountain of bowls) ----------
 // Tunables for the session and the chairlift. See CLAUDE.md "Design direction".
-const MTN={SECTIONS:4,GRID_STEP:1,LIFT_FALL_DELAY:5,LIFT_WIN_POINTS:2,LIFT_TIME:13,
+const MTN={SECTIONS:4,LIFT_FALL_DELAY:4,LIFT_WIN_POINTS:2,LIFT_TIME:13,
   MASH:0.085,DUEL_START_CLICKS:3,DUEL_START_WINDOW:1.2,BOT_MASH_BASE:3.2,BOT_MASH_SKILL:4.2};
 const PTS=[10,6,4,2];
 let SES=null;
@@ -1418,9 +1418,8 @@ function showResults(){
     const got=r.state==='finished'?PTS[i]||0:0;SES.totals[r.name]+=got;
     html+=`<tr class="${r.isPlayer?'me':''}"><td>${ord(i+1)}</td><td><span class="dot" style="background:${r.color}"></span>${r.name}</td><td>${r.state==='finished'?fmt(r.fin):CHASERS[S.ch.type].short}</td><td class="num">+${got}</td><td class="num">${SES.totals[r.name]}</td></tr>`;
   });
-  // Next bowl's grid: one second per place in THIS bowl (caught racers rank last, first caught last).
+  // v0.3.1: no place-based grid; everyone starts the next bowl together unless they fall off the lift.
   SES.delays=ROSTER.map(()=>0);
-  rk.forEach((r,i)=>{SES.delays[r.id]=i*MTN.GRID_STEP;});
   const p=S.racers[0];
   if(last){
     const order=[...ROSTER].sort((a,b)=>SES.totals[b.name]-SES.totals[a.name]);
@@ -1433,7 +1432,7 @@ function showResults(){
   }else{
     $('resTitle').textContent=p.state==='finished'?`You made it down ${ord(rk.indexOf(p)+1)}`:`You ${CHASERS[S.ch.type].verb}`;
     $('resSub').textContent=`Bowl ${SES.sec} of ${MTN.SECTIONS} - chaser: ${CHASERS[S.ch.type].name}`;
-    $('resGrid').textContent='Next bowl starts: '+rk.map(r=>`${r.isPlayer?'You':r.name} +${SES.delays[r.id]} s`).join(' · ');
+    $('resGrid').textContent='Mountain so far: '+[...ROSTER].sort((a,b)=>SES.totals[b.name]-SES.totals[a.name]).map(r=>`${r.isPlayer?'You':r.name} ${SES.totals[r.name]}`).join(' · ');
     $('nextBtn').textContent='Ride the lift';
     $('menuBtn').textContent='Quit mountain';
   }
